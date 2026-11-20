@@ -1,0 +1,19 @@
+[project]
+name = "w2ais-kernel-lab"
+version = "0.1.0"
+description = "GPU kernel experiments on local GB10 and remote B300"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "torch>=2.9",
+    "triton>=3.5",
+    "pytest>=8",
+    "numpy>=2.5.4",
+]
+
+[project.optional-dependencies]
+remote = ["modal>=1.0"]
+
+[tool.pytest.ini_options]
+testpaths = ["shared"]
+pythonpath = ["."]
