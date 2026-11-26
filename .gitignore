@@ -13,3 +13,7 @@ wheels/
 artifacts/
 .pytest_cache/
 *.ncu-rep
+
+# Raw benchmark and profiler output
+*.log
+/gb10/nvfp4-gemm/results/

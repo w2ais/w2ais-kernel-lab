@@ -89,3 +89,8 @@ Do not compare NCU-instrumented timings directly to ordinary benchmark timings.
 References: [Modal GPU configuration](https://modal.com/docs/guide/gpu),
 [NCU CLI](https://docs.nvidia.com/nsight-compute/NsightComputeCli/),
 [NCU clock control](https://docs.nvidia.com/nsight-compute/ProfilingGuide/#clock-control).
+
+## GB10 GEMM worklogs
+
+- [BF16 kernels and benchmark](gb10/bf16-gemm/README.md)
+- [Upcoming NVFP4 article kernels and benchmark](gb10/nvfp4-gemm/README.md)
