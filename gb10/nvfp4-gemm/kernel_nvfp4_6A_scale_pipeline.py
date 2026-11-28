@@ -9,6 +9,7 @@ import cutlass.utils as utils
 import cutlass.utils.hopper_helpers as sm90_utils
 from references import sm120_helpers as sm120_utils
 from references import scale_layout
+from tile_order import swizzled_tile
 import cutlass.utils.blockscaled_layout as blockscaled_utils
 from cutlass.cute.nvgpu import warp
 from cuda.bindings import driver as cuda
@@ -16,6 +17,7 @@ from cuda.bindings import driver as cuda
 TILE = (128, 256, 128)
 STAGES = 3
 GROUP_N = 4
+GROUP_M = None
 WARPS = 8
 
 
@@ -40,11 +42,11 @@ def nvfp4_cpasync_kernel(
     bid, _, _ = cute.arch.block_idx()
     m_tiles = cute.size(mC, mode=[0]) // TILE[0]
     n_tiles = cute.size(mC, mode=[1]) // TILE[1]
-    group_id = bid // (GROUP_N * m_tiles)
-    width = min(GROUP_N, n_tiles - group_id * GROUP_N)
-    in_group = bid - group_id * GROUP_N * m_tiles
-    bm = in_group // width
-    bn = group_id * GROUP_N + in_group % width
+    bm, bn = swizzled_tile(
+        bid, m_tiles, n_tiles,
+        GROUP_N if GROUP_M is None else GROUP_M,
+        GROUP_M is not None,
+    )
     gA = cute.local_tile(mA, (TILE[0], TILE[2]), (bm, None, 0))
     gB = cute.local_tile(mB, (TILE[1], TILE[2]), (bn, None, 0))
     gSFA = cute.local_tile(mSFA, (TILE[0], TILE[2]), (bm, None, 0))

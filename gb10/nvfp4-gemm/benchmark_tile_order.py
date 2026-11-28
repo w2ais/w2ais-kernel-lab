@@ -18,9 +18,9 @@ def measure(size):
     stream = problem["stream"]
     sm_count = torch.cuda.get_device_properties(0).multi_processor_count
     kernels = {}
-    for name in ("6A", "7A", "6M", "7M"):
+    for name in ("6A+", "7A", "6M", "7M"):
         module = importlib.import_module(KERNELS[name])
-        if name.endswith("A"):
+        if name.rstrip("+").endswith("A"):
             kernels[name] = cute.compile(module.gemm, *tensors, stream)
         else:
             kernels[name] = cute.compile(module.make_kernel(), *tensors, sm_count, stream)

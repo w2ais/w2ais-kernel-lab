@@ -1,0 +1,117 @@
+--- a/cuda/run_extended.py
++++ b/cuda/run_extended.py
+@@ -37,8 +37,4 @@
+         for length in [256, 4096]:
+             rows.add(("alu", op, 1, 1, 0, 0, length, samples, 0))
+-    for op in ["ffma", "exp2"]:
+-        for ratio in [1, 4, 8]:
+-            for mode in [0, 1, 2]:
+-                rows.add(("mixed", op, 16, 4, 0, ratio, 1024, samples, mode))
+     for size in [4096, 65536, 1048576, 8388608, 67108864, 268435456]:
+         for policy in ["ca", "cg"]:
+@@ -65,6 +61,4 @@
+     rows = [("alu", op, w, n, 0, 0, 32, 1, v) for op in ALU
+             for w, n in [(1, 1), (16, 4)] for v in [0, 1]]
+-    rows += [("mixed", op, 16, 4, 0, 4, 32, 1, mode)
+-             for op in ["ffma", "exp2"] for mode in [0, 1, 2]]
+     rows += [("memory", op, 1, 1, 1048576, 0, 519, 1, 0) for op in ["ca", "cg"]]
+     rows += [("shared", "lds", 1, 1, 4096, stride, 128, 1, 0) for stride in [0, 1, 2, 4, 8, 16, 32]]
+@@ -86,5 +80,5 @@
+     out.mkdir(parents=True, exist_ok=False)
+     (ROOT / "build").mkdir(exist_ok=True)
+-    command = ["nvcc", "-std=c++17", "-O3", "-gencode", "arch=compute_121a,code=sm_121a",
++    command = ["nvcc", "-std=c++17", "-O3", "-gencode", "arch=compute_103a,code=sm_103a",
+                "-lineinfo", "-Xptxas=-v", "probes/extended.cu", "-lcuda", "-o", "build/extended"]
+     with (out / "build.log").open("w") as f:
+--- a/cuda/analyze_extended.py
++++ b/cuda/analyze_extended.py
+@@ -92,18 +92,9 @@
+     sync = [{"op": op, "warps": w, **recurrence(family="sync", op=op, warps=w)}
+             for op, w in [("cta",w) for w in [1,4,8,16,32]]+[("mbarrier",1),("fence",1)]]
+-    mixed = []
+-    for op in ["ffma", "exp2"]:
+-        for ratio in [1,4,8]:
+-            cases = {p["variant"]: p for p in select(family="mixed", op=op, depth=ratio)}
+-            mma, scalar_time, both = [cases[m]["cycles_per_work"] for m in [0,1,2]]
+-            mixed.append({"op": op, "scalar_per_mma": ratio, "mma_only": mma,
+-                          "scalar_only": scalar_time, "mixed": both,
+-                          "serial_sum": mma+scalar_time, "ideal_overlap": max(mma, scalar_time),
+-                          "mixed_vs_mma": both/mma, "mixed_vs_serial": both/(mma+scalar_time)})
+     report = {"method": "Median cycles per round, then mean of round medians. Rates divide fixed work by mean cycles. "
+                         "Recurrence: three-length OLS within each round, then mean slopes. "
+                         "No fastest-sample or fastest-configuration selection.",
+               "total_samples": count, "configurations": len(points), "scalar": scalar,
+-              "shared": shared, "sync": sync, "mixed": mixed, "points": aggregate}
++              "shared": shared, "sync": sync, "points": aggregate}
+     (capture / "analysis.json").write_text(json.dumps(report, indent=2)+"\n")
+     fields = [k for k in aggregate[0] if k != "rounds"]
+@@ -115,5 +106,5 @@
+         print(f'{row["op"]:6}: recurrence {row["recurrence"]["cycles_per_step"]:.3f}; '
+               f'{row["results_per_sm_cycle"]:.3f} scalar results/SM/cycle')
+-    for family in ["shared", "sync", "mixed"]:
++    for family in ["shared", "sync"]:
+         print(family, json.dumps([{k:v for k,v in p.items() if k != "fits"} for p in report[family]]))
+     for p in select(family="memory"):
+--- a/cuda/probes/extended.cu
++++ b/cuda/probes/extended.cu
+@@ -215,8 +215,4 @@
+       else if(c.op=="rcp") alu_chains<Alu::RCP>(c);
+       else if(c.op=="exp2") alu_chains<Alu::EXP2>(c); else return 1;
+-    } else if(c.family=="mixed") {
+-      if(c.warps!=16 || c.chains!=4) return 1;
+-      if(c.op=="ffma") mixed_ratio<Alu::FFMA>(c);
+-      else if(c.op=="exp2") mixed_ratio<Alu::EXP2>(c); else return 1;
+     } else if(c.family=="memory") {
+       if(c.size<4096 || c.size>268435456 || c.size%128) return 1;
+--- a/supplemental/warp_pairs.cu
++++ b/supplemental/warp_pairs.cu
+@@ -55,5 +55,4 @@
+         case fma32:   sum = run_streams<fma32>(trips * 8, factor + float(lane & 1), packed); break;
+         case warp_exp2: sum = run_streams<warp_exp2>(trips * 2, factor, packed); break;
+-        case mma:     sum = run_streams<mma>(trips, factor, packed); break;
+         default: break;
+     }
+@@ -76,28 +75,11 @@
+ }
+ 
+-int main(int argc, char **argv) {
+-    const bool placement = argc == 2 && std::strcmp(argv[1], "--placement") == 0;
+-    if (argc != 1 && !placement) {
+-        std::fprintf(stderr, "Usage: %s [--placement]\n", argv[0]);
+-        return 1;
+-    }
++int main() {
+     unsigned long long *ticks;
+     float *output;
+     check(cudaMallocManaged(&ticks, sizeof(*ticks)));
+     check(cudaMallocManaged(&output, threads * sizeof(*output)));
+-    // Three launches for the separate Nsight Compute SMSP placement check.
+-    if (placement) {
+-        for (int gap : {1, 4, 8}) {
+-            pair_probe<<<1, threads>>>(0, gap, mma, mma, 1024, 1.0f, 0x3f803f80u, ticks, output);
+-            check(cudaGetLastError());
+-            check(cudaDeviceSynchronize());
+-        }
+-        check(cudaFree(output));
+-        check(cudaFree(ticks));
+-        return 0;
+-    }
+-
+     std::vector<Trial> trials;
+-    const Op ops[] = {fma32, warp_exp2, mma};
++    const Op ops[] = {fma32, warp_exp2};
+     for (int first = 0; first < warps; ++first) {
+         for (int trips : {256, 1024}) {
+--- a/supplemental/summarize.py
++++ b/supplemental/summarize.py
+@@ -23,8 +23,8 @@
+         return (long_run - short_run) / ((1024 - 256) * 8)
+ 
+-    names = {1: "FFMA", 2: "EX2", 3: "MMA"}
++    names = {1: "FFMA", 2: "EX2"}
+     print("Warp pair, gap, longer solo, sum of solos, pair (SM cycles per unit)")
+     for a in names:
+-        for b in range(a, 4):
++        for b in range(a, 3):
+             for gap in range(1, 9):
+                 samples = []

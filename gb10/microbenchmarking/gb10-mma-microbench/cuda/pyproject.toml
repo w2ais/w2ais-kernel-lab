@@ -1,0 +1,9 @@
+[project]
+name = "gb10-mma-microbench"
+version = "0.1.0"
+description = "Reproducible warp-MMA recurrence and per-SM throughput measurements"
+requires-python = ">=3.11"
+dependencies = []
+
+[tool.uv]
+package = false

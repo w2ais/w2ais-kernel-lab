@@ -1,0 +1,7 @@
+# Linux aarch64, Python 3.12. The CUDA 13 extra includes run-iket in DSL 4.6.0.
+nvidia-cutlass-dsl[cu13]==4.6.0
+torch==2.13.0
+cuda-python==13.3.1
+cuda-core==1.0.1
+numpy==2.5.1
+protobuf==6.33.6

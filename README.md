@@ -90,7 +90,10 @@ References: [Modal GPU configuration](https://modal.com/docs/guide/gpu),
 [NCU CLI](https://docs.nvidia.com/nsight-compute/NsightComputeCli/),
 [NCU clock control](https://docs.nvidia.com/nsight-compute/ProfilingGuide/#clock-control).
 
-## GB10 GEMM worklogs
+## GEMM and microbenchmarking worklogs
 
 - [BF16 kernels and benchmark](gb10/bf16-gemm/README.md)
 - [Upcoming NVFP4 article kernels and benchmark](gb10/nvfp4-gemm/README.md)
+- [IKET traces and bottleneck analysis of TMA and cooperative copies](gb10/iket/tma-cpasync-matmul/README.md)
+- [Upcoming microbenchmarking article code and reproduction instructions](gb10/microbenchmarking/gb10-mma-microbench/README.md)
+- [Upcoming B300 microbenchmarking results and Modal runner](b300/microbenchmarking/)
